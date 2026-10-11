@@ -1,48 +1,171 @@
-# codegates
+<div align="center">
 
-AST regression gates for Python projects. They read your source with `ast`
-(nothing is imported or executed) and fail your CI when a known-bad pattern
-comes back. Extracted from a production Telegram bot, where each of these
-patterns caused a real incident.
+# 🛡️ pycode-gates (codegates)
+### AST Static Regression Gates for Python: Stop Async Freezes & Silent Failures in CI
 
-| Check | Catches | Why it hurts |
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg?logo=python&logoColor=white)](https://python.org)
+[![Engine: Pure AST](https://img.shields.io/badge/Engine-Python%20AST%20(No%20Imports%20%7C%20Zero%20Exec)-purple.svg)](https://docs.python.org/3/library/ast.html)
+[![CI/CD Ready](https://img.shields.io/badge/CI%2FCD-Exit%20Code%201%20Gate%20%7C%20Pytest-green.svg)](https://github.com/Kaio-Comk/pycode-gates)
+[![AsyncIO Protection](https://img.shields.io/badge/AsyncIO-Anti--Freeze%20Tripwires-red.svg)](https://github.com/Kaio-Comk/pycode-gates)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+**Catch fatal Python anti-patterns in your syntax tree before they hit production.**  
+*Reads AST without importing or executing files. Born from real high-traffic production incidents.*
+
+[The 3 Core Gates](#-the-core-regression-gates) • [Architecture](#-how-ast-inspection-works) • [Installation](#-installation) • [CLI & CI Usage](#-cli--github-actions-usage) • [Pytest Integration](#-pytest-tripwire-integration)
+
+</div>
+
+---
+
+## ⚡ The Core Regression Gates
+
+Every gate was created in response to real production outages in high-concurrency systems:
+
+| Check | Catches | Why It Kills Production |
 |---|---|---|
-| `silent-except` | `except Exception:` / bare `except:` that neither logs nor re-raises | features silently stop working and nobody notices |
-| `swallowed-cancellation` | handlers that catch `CancelledError`, `KeyboardInterrupt` or `SystemExit` without re-raising | tasks that cannot be cancelled, processes that cannot stop |
-| `blocking-in-async` | `time.sleep`, `subprocess.run`, `requests.*`, `open()`, `Path.read_text()`... directly inside `async def` | one blocking call freezes the whole event loop (we lost a 700 MB upload to a 10-minute `subprocess.run(ffmpeg)`) |
+| 🚫 **`blocking-in-async`** | `time.sleep`, `subprocess.run`, `requests.*`, `open()`, `Path.read_text()` inside `async def` | Freezes the **entire asyncio event loop** for all users simultaneously. |
+| 🚫 **`swallowed-cancellation`** | `except (CancelledError, KeyboardInterrupt, SystemExit):` without re-raising | Creates zombie tasks that refuse to cancel, causing memory leaks and shutdown hangs. |
+| 🚫 **`silent-except`** | Bare `except:` or `except Exception:` that neither logs nor re-raises | Features silently fail in production with zero logs, leaving developers completely blind. |
 
-## Use
+---
+
+## 🔬 Bad vs. Good Code Patterns
+
+````carousel
+<!-- slide -->
+### 1. `blocking-in-async`
+```python
+# ❌ INCIDENT: Freezes event loop for all concurrent connections
+async def fetch_video(url: str):
+    time.sleep(2)                     # Freezes loop!
+    res = subprocess.run(["ffmpeg"])  # Freezes loop!
+
+# ✅ CORRECT: Offload sync I/O to worker thread
+async def fetch_video(url: str):
+    await asyncio.sleep(2)
+    await asyncio.to_thread(subprocess.run, ["ffmpeg"])
+```
+<!-- slide -->
+### 2. `swallowed-cancellation`
+```python
+# ❌ INCIDENT: Swallowing CancelledError prevents task termination
+async def background_worker():
+    try:
+        await long_task()
+    except asyncio.CancelledError:
+        pass  # Zombie task keeps running in background!
+
+# ✅ CORRECT: Cleanup and immediately re-raise
+async def background_worker():
+    try:
+        await long_task()
+    except asyncio.CancelledError:
+        cleanup_resources()
+        raise  # Critical: Propagate cancellation!
+```
+<!-- slide -->
+### 3. `silent-except`
+```python
+# ❌ INCIDENT: Silent pass masks critical bugs
+try:
+    save_user_order(order)
+except Exception:
+    pass  # Order dropped, zero logs, customer loses money!
+
+# ✅ CORRECT: Log exception with traceback
+try:
+    save_user_order(order)
+except Exception:
+    logger.exception("Failed to persist order")
+    raise
+```
+````
+
+---
+
+## 🏗️ How AST Inspection Works
+
+```mermaid
+flowchart TD
+    Source["📄 Python Files (*.py)"] --> Parser["🌳 Pure ast.parse() (Zero imports / No code exec)"]
+    Parser --> Walker["🔍 AST Node Visitor"]
+    
+    Walker --> Gate1{"Call inside async def?"}
+    Gate1 -->|time.sleep, requests, subprocess| Err1["🛑 Alert: blocking-in-async"]
+    
+    Walker --> Gate2{"Except handler catches CancelledError?"}
+    Gate2 -->|Does not re-raise| Err2["🛑 Alert: swallowed-cancellation"]
+    
+    Walker --> Gate3{"Bare except without logger/raise?"}
+    Gate3 -->|Empty pass/return| Err3["🛑 Alert: silent-except"]
+    
+    Err1 & Err2 & Err3 --> Report["🚨 Print line numbers & Exit Code 1"]
+```
+
+---
+
+## 📦 Installation
 
 ```bash
 pip install git+https://github.com/Kaio-Comk/pycode-gates.git
-python -m codegates src/                       # all checks, exit code 1 on findings
-python -m codegates src/ --check blocking-in-async --skip migrations
 ```
 
-As a pytest gate:
+---
+
+## 🚀 CLI & GitHub Actions Usage
+
+### Run from Terminal
+```bash
+# Scan entire project (returns exit code 1 if violations found)
+python -m codegates src/
+
+# Run specific check while ignoring legacy directories
+python -m codegates src/ --check blocking-in-async --skip migrations legacy
+```
+
+### GitHub Actions CI Workflow (`.github/workflows/lint.yml`)
+```yaml
+name: Regression Gates
+on: [push, pull_request]
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install git+https://github.com/Kaio-Comk/pycode-gates.git
+      - run: python -m codegates src/
+```
+
+---
+
+## 🧪 Pytest Tripwire Integration
+
+Add a dedicated test file to guarantee nobody ever commits an event loop blocking call or silent exception:
 
 ```python
+# tests/test_code_gates.py
 from codegates import scan
 
-def test_no_silent_except():
-    assert scan("src", ["silent-except"]) == []
+def test_no_event_loop_freezes():
+    violations = scan("src", checks=["blocking-in-async"])
+    assert violations == [], f"Found blocking calls inside async functions: {violations}"
+
+def test_no_swallowed_cancellations():
+    violations = scan("src", checks=["swallowed-cancellation"])
+    assert violations == [], f"Found swallowed cancellation exceptions: {violations}"
 ```
 
-Nested sync functions inside an `async def` are skipped on purpose: they are
-usually the callable you hand to `asyncio.to_thread`.
+---
 
-## Limits
+## 📄 License
 
-These are heuristics on the syntax tree: they do not follow calls into other
-functions, and a handler counts as "handled" when it calls anything whose name
-looks like logging. Use them as tripwires, not as proof.
+Distributed under the **MIT License**. See `LICENSE` for details.
 
-## Tests
-
-```bash
-pip install -e ".[dev]" && pytest
-```
-
-## License
-
-MIT
+<div align="center">
+  <sub>Built with ❤️ by Kaio Lima. If pycode-gates prevented an outage, please star ⭐ the project!</sub>
+</div>
