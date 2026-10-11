@@ -1,12 +1,12 @@
 <div align="center">
 
-# 🛡️ pycode-gates (codegates)
+# 🛡️ Cerberus-Gates (codegates)
 ### AST Static Regression Gates for Python: Stop Async Freezes & Silent Failures in CI
 
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg?logo=python&logoColor=white)](https://python.org)
 [![Engine: Pure AST](https://img.shields.io/badge/Engine-Python%20AST%20(No%20Imports%20%7C%20Zero%20Exec)-purple.svg)](https://docs.python.org/3/library/ast.html)
-[![CI/CD Ready](https://img.shields.io/badge/CI%2FCD-Exit%20Code%201%20Gate%20%7C%20Pytest-green.svg)](https://github.com/Kaio-Comk/pycode-gates)
-[![AsyncIO Protection](https://img.shields.io/badge/AsyncIO-Anti--Freeze%20Tripwires-red.svg)](https://github.com/Kaio-Comk/pycode-gates)
+[![CI/CD Ready](https://img.shields.io/badge/CI%2FCD-Exit%20Code%201%20Gate%20%7C%20Pytest-green.svg)](https://github.com/Kaio-Comk/Cerberus-Gates)
+[![AsyncIO Protection](https://img.shields.io/badge/AsyncIO-Anti--Freeze%20Tripwires-red.svg)](https://github.com/Kaio-Comk/Cerberus-Gates)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **Catch fatal Python anti-patterns in your syntax tree before they hit production.**  
@@ -108,7 +108,7 @@ flowchart TD
 ## 📦 Installation
 
 ```bash
-pip install git+https://github.com/Kaio-Comk/pycode-gates.git
+pip install git+https://github.com/Kaio-Comk/Cerberus-Gates.git
 ```
 
 ---
@@ -137,7 +137,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install git+https://github.com/Kaio-Comk/pycode-gates.git
+      - run: pip install git+https://github.com/Kaio-Comk/Cerberus-Gates.git
       - run: python -m codegates src/
 ```
 
@@ -167,5 +167,5 @@ def test_no_swallowed_cancellations():
 Distributed under the **MIT License**. See `LICENSE` for details.
 
 <div align="center">
-  <sub>Built with ❤️ by Kaio Lima. If pycode-gates prevented an outage, please star ⭐ the project!</sub>
+  <sub>Built with ❤️ by Kaio Lima. If Cerberus-Gates prevented an outage, please star ⭐ the project!</sub>
 </div>
