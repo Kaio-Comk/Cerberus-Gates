@@ -32,8 +32,6 @@ Every gate was created in response to real production outages in high-concurrenc
 
 ## 🔬 Bad vs. Good Code Patterns
 
-````carousel
-<!-- slide -->
 ### 1. `blocking-in-async`
 ```python
 # ❌ INCIDENT: Freezes event loop for all concurrent connections
@@ -46,7 +44,7 @@ async def fetch_video(url: str):
     await asyncio.sleep(2)
     await asyncio.to_thread(subprocess.run, ["ffmpeg"])
 ```
-<!-- slide -->
+
 ### 2. `swallowed-cancellation`
 ```python
 # ❌ INCIDENT: Swallowing CancelledError prevents task termination
@@ -64,7 +62,7 @@ async def background_worker():
         cleanup_resources()
         raise  # Critical: Propagate cancellation!
 ```
-<!-- slide -->
+
 ### 3. `silent-except`
 ```python
 # ❌ INCIDENT: Silent pass masks critical bugs
@@ -80,7 +78,6 @@ except Exception:
     logger.exception("Failed to persist order")
     raise
 ```
-````
 
 ---
 
@@ -100,7 +97,9 @@ flowchart TD
     Walker --> Gate3{"Bare except without logger/raise?"}
     Gate3 -->|Empty pass/return| Err3["🛑 Alert: silent-except"]
     
-    Err1 & Err2 & Err3 --> Report["🚨 Print line numbers & Exit Code 1"]
+    Err1 --> Report
+    Err2 --> Report
+    Err3 --> Report["🚨 Print line numbers & Exit Code 1"]
 ```
 
 ---
