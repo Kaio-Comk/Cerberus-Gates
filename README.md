@@ -91,15 +91,58 @@ flowchart TD
     Walker --> Gate1{"Call inside async def?"}
     Gate1 -->|time.sleep, requests, subprocess| Err1["🛑 Alert: blocking-in-async"]
     
-    Walker --> Gate2{"Except handler catches CancelledError?"}
+    Walker --> Gate2{"Except catches CancelledError?"}
     Gate2 -->|Does not re-raise| Err2["🛑 Alert: swallowed-cancellation"]
     
-    Walker --> Gate3{"Bare except without logger/raise?"}
+    Walker --> Gate3{"Bare except without log/raise?"}
     Gate3 -->|Empty pass/return| Err3["🛑 Alert: silent-except"]
     
-    Err1 --> Report
+    Err1 --> Report["🚨 Print line numbers & Exit Code 1"]
     Err2 --> Report
-    Err3 --> Report["🚨 Print line numbers & Exit Code 1"]
+    Err3 --> Report
+```
+
+---
+
+---
+
+## 💻 Hands-on Example & Output
+
+### 1. Problematic Code (`app/service.py`)
+```python
+import time
+
+async def fetch_user_data(user_id: int):
+    # Freezes entire event loop for all concurrent connections
+    time.sleep(2)
+    return {"id": user_id, "status": "active"}
+```
+
+### 2. Scanner Detection
+```bash
+$ python -m codegates app/
+app/service.py:5:4: [blocking-in-async] time.sleep inside async def freezes the event loop
+1 finding(s)
+$ echo $?
+1
+```
+
+### 3. Verified Fix
+```python
+import asyncio
+
+async def fetch_user_data(user_id: int):
+    # Non-blocking: yields control back to event loop
+    await asyncio.sleep(2)
+    return {"id": user_id, "status": "active"}
+```
+
+### 4. Clean Run
+```bash
+$ python -m codegates app/
+0 finding(s)
+$ echo $?
+0
 ```
 
 ---
