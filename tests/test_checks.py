@@ -104,6 +104,14 @@ def test_pastas_ignoradas_e_check_desconhecido(tmp_path):
         raise AssertionError("deveria falhar")
 
 
+def test_raiz_dentro_de_pasta_com_nome_ignorado_ainda_e_escaneada(tmp_path):
+    # Projeto guardado em ...\build\app (ou dist, venv): só as pastas ABAIXO da raiz contam.
+    proj = tmp_path / "build" / "app"
+    proj.mkdir(parents=True)
+    _write(proj, "f.py", "try:\n    pass\nexcept Exception:\n    pass\n")
+    assert len(scan(proj)) == 1
+
+
 def test_cli_codigo_de_saida(tmp_path, capsys):
     _write(tmp_path, "d.py", "try:\n    pass\nexcept Exception:\n    pass\n")
     assert main([str(tmp_path)]) == 1
@@ -112,3 +120,13 @@ def test_cli_codigo_de_saida(tmp_path, capsys):
     clean.mkdir()
     _write(clean, "e.py", "x = 1\n")
     assert main([str(clean)]) == 0
+
+
+def test_arquivo_com_bom_ou_outra_codificacao_nao_e_pulado(tmp_path):
+    # Arquivos salvos com BOM (comum no Windows) ou com `# -*- coding: latin-1 -*-` eram pulados em
+    # silêncio: o portão dizia "0 finding(s)" sem ter lido o arquivo.
+    corpo = "try:\n    pass\nexcept Exception:\n    pass\n"
+    (tmp_path / "bom.py").write_bytes(b"\xef\xbb\xbf" + corpo.encode())
+    (tmp_path / "latin.py").write_bytes(("# -*- coding: latin-1 -*-\n# ação\n" + corpo).encode("latin-1"))
+    achados = {x.path.split("\\")[-1].split("/")[-1] for x in scan(tmp_path, ["silent-except"])}
+    assert achados == {"bom.py", "latin.py"}

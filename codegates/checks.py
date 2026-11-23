@@ -43,15 +43,18 @@ def iter_py_files(root: Path, skip: Iterable[str] = DEFAULT_SKIP) -> Iterator[Pa
         yield root
         return
     for p in sorted(root.rglob("*.py")):
-        if any(part in skip for part in p.parts):
+        # Only folders BELOW the scanned root count: a project kept in ...\build\app must still be scanned.
+        if any(part in skip for part in p.relative_to(root).parts):
             continue
         yield p
 
 
 def _parse(path: Path):
+    # Bytes, not text: ast.parse then honors a UTF-8 BOM and `# -*- coding: ... -*-` (PEP 263) like the
+    # interpreter does. Decoding as UTF-8 first made those files fail to parse and be skipped silently.
     try:
-        return ast.parse(path.read_text(encoding="utf-8"))
-    except (SyntaxError, UnicodeDecodeError, OSError):
+        return ast.parse(path.read_bytes())
+    except (SyntaxError, UnicodeDecodeError, ValueError, OSError):
         return None
 
 
